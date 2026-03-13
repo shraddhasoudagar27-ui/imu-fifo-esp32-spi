@@ -15,12 +15,12 @@ The firmware reads accelerometer, gyroscope, and temperature data from the senso
 <table align="center">
 <tr>
 <td align="center" style="padding-right:40px;">
-<img src="images/esp32devkitv1.jpg" width="200"><br>
+<img src="docs/images/esp32devkitv1.jpg" width="200"><br>
 ESP32 DevKitV1
 </td>
 
 <td align="center">
-<img src="images/mpu9250.jpg" width="200"><br>
+<img src="docs/images/mpu9250.jpg" width="200"><br>
 MPU9250 Sensor Module
 </td>
 </tr>
