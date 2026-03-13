@@ -12,8 +12,19 @@ The firmware reads accelerometer, gyroscope, and temperature data from the senso
 
 ### Hardware components
 
-![ESP32devkitv1](images/esp32devkitv1.jpg)     ![MPU9250](images/mpu9250.jpg)
+<table align="center">
+<tr>
+<td align="center" style="padding-right:40px;">
+<img src="images/esp32devkitv1.jpg" width="200"><br>
+ESP32 DevKitV1
+</td>
 
+<td align="center">
+<img src="images/mpu9250.jpg" width="200"><br>
+MPU9250 Sensor Module
+</td>
+</tr>
+</table>
 
 - ESP32 Development Board
 - MPU-9250 9-axis IMU sensor module
