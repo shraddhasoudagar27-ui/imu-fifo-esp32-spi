@@ -1,6 +1,6 @@
 # ESP32 IMU FIFO Data Acquisition using MPU9250 (SPI)
 
-This project implements high-rate IMU data acquisition on the ESP32 using the MPU-9250 sensor over SPI.
+This project implements IMU data acquisition on the ESP32 using the MPU-9250 sensor over SPI.
 The firmware reads accelerometer, gyroscope, and temperature data from the sensor at 200 Hz, stores the samples in a ring buffer, and periodically logs scaled physical values over UART.
 
 ### The project demonstrates:
@@ -11,6 +11,9 @@ The firmware reads accelerometer, gyroscope, and temperature data from the senso
 - Conversion of raw sensor readings to physical units
 
 ### Hardware components
+
+![ESP32devkitv1](esp32devkitv1.jpg)     ![MPU9250](mpu9250.jpg)
+
 
 - ESP32 Development Board
 - MPU-9250 9-axis IMU sensor module
@@ -30,6 +33,51 @@ The firmware reads accelerometer, gyroscope, and temperature data from the senso
 <br>
 
 #### SPI frequency used: 1 MHz
+
+<br>
+
+### Ring Buffer Architecture
+
+The system uses a circular ring buffer to temporarily store IMU samples before processing.
+
+Buffer Size: 
+RING_BUF_LEN = 2048 samples
+
+At 200 Hz sampling rate, this corresponds to:
+2048 / 200 ≈ 10 seconds of data
+
+Sample Structure
+
+Each IMU sample contains:
+```
+Accelerometer (X,Y,Z)
+Gyroscope (X,Y,Z)
+Temperature
+Timestamp (microseconds)
+typedef struct {
+    int16_t ax, ay, az;
+    int16_t gx, gy, gz;
+    int16_t temp_raw;
+    int64_t timestamp_us;
+} imu_sample_t;
+Head and Tail Pointers
+```
+The ring buffer maintains two indices:
+```
+head → newest sample
+tail → oldest sample
+```
+When the buffer becomes full, the oldest sample is overwritten and an overrun counter is incremented.
+
+#### Power-of-Two Optimization
+
+The buffer size is chosen as 2048 (2¹¹) to enable efficient wrap-around using bit masking:
+
+index & (RING_BUF_LEN - 1)
+
+This avoids slower modulo operations.
+
+<br>
 
 ### Sensor Configuration
 
@@ -64,14 +112,7 @@ Data Acquisition: Every 5 ms (200 Hz) the firmware reads 14 bytes starting from 
 | 12–13 | Gyro Z |
 
 All values are 16-bit signed integers (big-endian).
-<br> 
-### Ring Buffer
-To avoid data loss, samples are stored in a circular buffer.
 
-Buffer size = 2048 samples
-Sampling rate = 200 Hz
-Buffer duration ≈ 10 seconds
-<br> 
 Sensor Scaling: Raw data is converted to physical units using the MPU-9250 sensitivity constants.
 
 <br>
@@ -105,8 +146,6 @@ Reading 14 bytes(IMU + temp) instead of 12 is convenient because the IMU registe
 <br>
 
 
-This project reads **accelerometer and gyroscope data from an IMU (MPU9250 / MPU6050)** using an **ESP32** and streams the data as **CSV over serial**.
-
 The project uses **PlatformIO in VSCode with ESP-IDF**.
 
 
@@ -136,26 +175,7 @@ Open the serial monitor:
 pio device monitor
 ```
 
-### Example Output
 
-```
-I (275) main task: Calling app_main()
-I (275) IMU: === MPU-9250 SPI Acquisition starting ===
-I (635) IMU: MPU-9250 detected  WHO_AM_I=0x70 ✓
-I (635) IMU: Sampling at 200 Hz | Ring buffer: 2048 samples = 10.2 s
-I (635) main_task: Returned from app_main()
-
-I (1635) IMU: [1373562 us] total=199 (+199/s) buf=199 overruns=0 | A(g): 0.007 -0.001 1.004  G(dps): 1.69 1.04 -1.40  T: 33.7°C
-I (2635) IMU: [2373562 us] total=399 (+200/s) buf=399 overruns=0 | A(g): 0.009 -0.003 1.007  G(dps): 1.62 0.92 -1.48  T: 33.7°C
-I (3635) IMU: [3373562 us] total=599 (+200/s) buf=599 overruns=0 | A(g): 0.006 0.001 1.006  G(dps): 1.53 1.01 -1.36  T: 33.7°C
-I (4635) IMU: [4373562 us] total=799 (+200/s) buf=799 overruns=0 | A(g): 0.005 -0.003 1.007  G(dps): 1.54 0.90 -1.39  T: 33.7°C
-I (5635) IMU: [5373562 us] total=999 (+200/s) buf=999 overruns=0 | A(g): 0.007 -0.003 1.009  G(dps): 1.53 1.01 -1.40  T: 33.7°C
-I (6635) IMU: [6373562 us] total=1199 (+200/s) buf=1199 overruns=0 | A(g): 0.006 0.000 1.011  G(dps): 1.56 0.75 -1.30  T: 33.7°C
-I (7635) IMU: [7373562 us] total=1399 (+200/s) buf=1399 overruns=0 | A(g): 0.011 -0.004 1.005  G(dps): 1.50 0.99 -1.37  T: 33.7°C
-I (8635) IMU: [8373562 us] total=1599 (+200/s) buf=1599 overruns=0 | A(g): 0.010 -0.004 1.012  G(dps): 1.57 0.85 -1.36  T: 33.7°C
-I (9635) IMU: [9373562 us] total=1799 (+200/s) buf=1799 overruns=0 | A(g): 0.006 -0.008 1.010  G(dps): 1.47 1.01 -1.33  T: 33.7°C
-I (10635) IMU: [10373562 us] total=1999 (+200/s) buf=1999 overruns=0 | A(g): 0.010 -0.005 1.002  G(dps): 1.44 1.01 -1.44  T: 33.8°C
-```
 ### Log Data to CSV
 
 Save the IMU data directly to a file:
