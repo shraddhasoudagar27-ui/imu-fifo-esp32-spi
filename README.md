@@ -156,9 +156,45 @@ Reading 14 bytes(IMU + temp) instead of 12 is convenient because the IMU registe
 
 <br>
 
+### Thread / Task Design
 
-The project uses **PlatformIO in VSCode with ESP-IDF**.
+The system follows a producer-consumer architecture to separate time-critical sensor sampling from slower UART logging operations.
 
+#### Producer-Consumer Model
+
+The producer collects IMU samples at 200 Hz and pushes them into a ring buffer, while the consumer reads the latest sample at 1 Hz and logs it over UART. The ring buffer decouples high-frequency data acquisition from slower logging operations, ensuring deterministic sensor sampling.
+
+```mermaid
+flowchart LR
+
+subgraph Hardware
+IMU[MPU9250 IMU Sensor]
+end
+
+subgraph ESP32
+SPI[SPI Driver]
+Timer[esp_timer Sampling Callback<br>Producer<br>200 Hz]
+Buffer[Ring Buffer<br>2048 Samples]
+Logger[FreeRTOS Logger Task<br>Consumer<br>1 Hz]
+UART[UART Serial Output]
+end
+
+IMU -->|SPI Bus| SPI
+SPI --> Timer
+Timer -->|Produce Sample| Buffer
+Buffer -->|Consume Sample| Logger
+Logger --> UART
+```
+The system is divided into two concurrent execution contexts connected through a ring buffer.
+
+| Component       | Role              | Frequency   |
+|----------------|-------------------|-------------|
+| Sampling Timer | Producer          | 200 Hz      |
+| Ring Buffer    | Shared Data Layer | Continuous  |
+| Logger Task    | Consumer          | 1 Hz        |
+<br> 
+
+#### The project uses **PlatformIO in VSCode with ESP-IDF**.
 
 ### Build
 
