@@ -12,7 +12,7 @@ The firmware reads accelerometer, gyroscope, and temperature data from the senso
 
 ### Hardware components
 
-![ESP32devkitv1](esp32devkitv1.jpg)     ![MPU9250](mpu9250.jpg)
+![ESP32devkitv1](images/esp32devkitv1.jpg)     ![MPU9250](images/mpu9250.jpg)
 
 
 - ESP32 Development Board
