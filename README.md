@@ -55,37 +55,63 @@ MPU9250 Sensor Module
 
 ## System Architecture
 
-The firmware follows an interrupt-driven architecture for deterministic IMU sampling. 
-The MPU-9250 generates a Data Ready interrupt at 200 Hz, signaling that a new sample is available in the internal FIFO. 
-The ESP32 retrieves the sample over SPI and stores it in a lock-free ring buffer. 
+The firmware follows an **interrupt-assisted, FIFO-based architecture** for efficient and deterministic IMU data acquisition.
 
-This design allows high-frequency sensor acquisition to run independently of slower logging operations. 
-A separate FreeRTOS task periodically reads the latest sample from the buffer and outputs scaled values over UART.
+The MPU-9250 samples accelerometer and gyroscope data at **200 Hz** and stores it in its internal **FIFO buffer (512 bytes)**. A Data Ready interrupt is generated for each sample, which serves as a wake-up signal for the ESP32.
+
+Instead of reading one sample per interrupt, the ESP32 implements a **software watermark strategy**:
+
+* FIFO data is read only when it reaches a threshold (e.g., 120 bytes ≈ 10 samples)
+* A safety condition ensures the FIFO is drained before overflow
+
+The IMU Reader task performs **SPI burst reads**, converts raw data into structured samples, and stores them in a **lock-free ring buffer**.
+
+This design decouples high-frequency data acquisition from slower logging operations. A separate FreeRTOS task periodically reads the latest sample and outputs scaled physical values over UART.
+
 
 ```mermaid
 flowchart LR
 
 subgraph Hardware
-IMU[MPU9250 IMU<br>200 Hz Sampling]
+IMU["MPU9250 IMU\n200 Hz Sampling"]
+FIFO["Internal FIFO\n512 Bytes"]
 end
 
 subgraph ESP32
-ISR[GPIO ISR<br>Data Ready Interrupt]
-Reader[IMU Reader Task]
-SPI[SPI Burst Read<br>MPU FIFO]
-Buffer[Ring Buffer<br>2048 Samples]
-Logger[Logger Task<br>1 Hz]
-UART[UART Output]
+ISR["GPIO ISR\nData Ready Interrupt"]
+Reader["IMU Reader Task\nWatermark Check"]
+SPI["SPI Burst Read\nBatch Transfer"]
+Buffer["Ring Buffer\n2048 Samples (~10s)"]
+Logger["Logger Task\n1 Hz"]
+UART["UART Output"]
 end
 
-IMU -->|INT Pin| ISR
+IMU --> FIFO
+FIFO -->|INT Pin| ISR
 ISR --> Reader
-Reader --> SPI
+Reader -->|FIFO ≥ 120B| SPI
 SPI --> Buffer
 Buffer --> Logger
 Logger --> UART
 ```
+
 <br>
+
+### FIFO Watermark Strategy
+
+The MPU9250 does not support a hardware watermark interrupt.
+Instead, a software watermark is implemented:
+
+Watermark Threshold: 120 bytes (~10 samples)
+
+Safety Drain Threshold: 480 bytes (near FIFO limit)
+
+Behavior:
+- Data is processed only when FIFO ≥ 120 bytes
+- If FIFO approaches capacity (≥ 480 bytes), it is drained immediately
+- Prevents overflow while reducing CPU overhead
+  
+<br> 
 
 ### Ring Buffer Architecture
 
