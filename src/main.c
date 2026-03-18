@@ -10,7 +10,7 @@
 
 #define IMU_INT_PIN 4
 
-static const char *TAG = "IMU";
+static const char *TAG = "IMU";//label for log msgs
 
 /* SPI pins */
 #define PIN_MOSI 23
@@ -42,6 +42,8 @@ static const char *TAG = "IMU";
 #define REG_INT_STATUS   0x3A
 
 #define MPU_READ 0x80
+
+#define FIFO_WATERMARK 120   // 10 samples (10 × 12 bytes)
 
 /* Scaling */
 #define ACCEL_SENS 8192.0f
@@ -155,27 +157,27 @@ static void mpu_init(void)
 {
     vTaskDelay(pdMS_TO_TICKS(100));
 
-    mpu_write(REG_PWR_MGMT_1, 0x80);
+    mpu_write(REG_PWR_MGMT_1, 0x80);//1 – Reset the internal registers and restores the default settings.  Write a 1 to set the reset, the bit will auto clear. 
     vTaskDelay(pdMS_TO_TICKS(200));
 
-    mpu_write(REG_PWR_MGMT_1, 0x01);
+    mpu_write(REG_PWR_MGMT_1, 0x01);//Auto selects the best available clock source – PLL if ready, else use the Internal oscillator 
     vTaskDelay(pdMS_TO_TICKS(50));
 
-    mpu_write(REG_PWR_MGMT_2, 0x00);
+    mpu_write(REG_PWR_MGMT_2, 0x00);//enable acc and gyro
 
-    mpu_write(REG_CONFIG, 0x01);
-    mpu_write(REG_SMPLRT_DIV, 0x04);
+    mpu_write(REG_CONFIG, 0x01);//gyro DLPF bandwidth=184hz, internal sampling rate 1khz
+    mpu_write(REG_SMPLRT_DIV, 0x04);// set REG_SMPLRT_DIV 4th bit 
 
-    mpu_write(REG_GYRO_CONFIG, 0x08);
-    mpu_write(REG_ACCEL_CONFIG, 0x08);
-    mpu_write(REG_ACCEL_CONFIG2, 0x00);
+    mpu_write(REG_GYRO_CONFIG, 0x08);//±500 degrees full scale range
+    mpu_write(REG_ACCEL_CONFIG, 0x08);//±4g fs range
+    mpu_write(REG_ACCEL_CONFIG2, 0x00);//acc DLPF bandwidth=218.1hz, internal sampling rate 1khz
 
     /* Reset FIFO */
-    mpu_write(REG_USER_CTRL, 0x04);
+    mpu_write(REG_USER_CTRL, 0x04);//set 2nd bit
     vTaskDelay(pdMS_TO_TICKS(10));
 
     /* Enable FIFO */
-    mpu_write(REG_USER_CTRL, 0x40);
+    mpu_write(REG_USER_CTRL, 0x40);//set 6th bit
 
     /* Accel + gyro to FIFO */
     mpu_write(REG_FIFO_EN, 0x78);
@@ -197,11 +199,12 @@ static void imu_reader_task(void *arg)
 {
     while (1)
     {
-        if (imu_data_ready)
-        {
-            imu_data_ready = false;
+        uint16_t count = mpu_fifo_count();
 
-            uint16_t count = mpu_fifo_count();
+        // Watermark OR safety drain condition
+        if (count >= FIFO_WATERMARK || count >= 480)
+        {
+            imu_data_ready = false;  // clear flag safely
 
             while (count >= 12)
             {
